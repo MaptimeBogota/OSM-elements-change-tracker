@@ -1,0 +1,7 @@
+Vías que dejaron de estar en construcción
+ [out:csv(::id)];
+ area[name="Bogotá"][admin_level=7][boundary=administrative]->.searchArea;
+ (
+   way["highway"="construction"](area.searchArea);
+ );
+ out ids;

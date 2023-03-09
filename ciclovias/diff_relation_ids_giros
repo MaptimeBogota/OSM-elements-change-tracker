@@ -1,0 +1,6 @@
+Restricciones de giro por ciclovía
+[out:csv(::id)];
+(
+  relation["restriction:conditional"]["name"="Ciclovia"];
+);
+out ids;
