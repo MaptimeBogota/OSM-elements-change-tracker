@@ -9,6 +9,10 @@
 # Este script es la integración del validador de ciclovías y de vías en
 # construcción. Aquí se busca que sea más dinámico en todo aspecto.
 #
+# To change the email addresses of the recipients, the EMAILS environment
+# variable can be changed like:
+#   export EMAILS="maptime.bogota@gmail.com,contact@osm.org"
+#
 # The file should start with diff. It is separated by underscore. The middle
 # word specifies if the analisys is for: node, way, relation; only one
 # type of element is possible. The final word specifies if the elements are
@@ -199,6 +203,10 @@ function __show_help {
  echo "La primera línea del archivo contiene el título de la operación de"
  echo "análisis, la cual será usada para enviar mensaje de correo electrónico."
  echo
+ echo "Para cambiar los destinatarios del reporte enviado por correo"
+ echo "electrónico, se modifica la variable de entorno EMAILS:"
+ echo "  export EMAILS=\"maptime.bogota@gmail.com,contact@osm.org\""
+ echo
  echo "Escrito por: Andres Gomez (AngocA)"
  echo "MaptimeBogota."
  exit "${ERROR_HELP_MESSAGE}"
@@ -311,6 +319,7 @@ function __generateIds {
   tail -n +2 "${IDS_FILE}" > "${IDS_FILE}2"
   mv "${IDS_FILE}2" "${IDS_FILE}"
  fi
+ cat "${IDS_FILE}" >> "${LOG_FILE}"
  __log_finish
 }
 

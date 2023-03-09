@@ -31,19 +31,33 @@ Y seguir algún tutorial de cómo configurarlo:
 Para esto hay que generar un password desde Gmail.
 
 
-###  Programación desde cron
+##  Programación desde cron
 
 ```
 
-# Corre el verificador de ciclovias todos los dias.
-0 2 * * * cd ~/OSM-elements-change-tracker ; ./verifier.sh ciclovias/diff_relation_ids_ciclovias
-0 3 * * * cd ~/OSM-elements-change-tracker ; ./verifier.sh ciclovias/diff_relation_ids_giros
+# Corre el verificador de ciclovias todos los dias en Bogotá.
+0 2 * * * cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/ciclovias-bogota/diff_relation_ids_ciclovias
+0 3 * * * cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/ciclovias-bogota/diff_relation_ids_giros
 
-# Correl el verificador de vías en construcción.
-0 3 * * * cd ~/OSM-elements-change-tracker ; ./verifier.sh viasEnConstruccion/diff_way_query
+# Corre el verificador de vías en construcción en Bogotá.
+0 4 * * * cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/viasEnConstruccion-bogota/diff_way_query
+
+# Corre el verificador en rutas de transporte de Duitama.
+# Chequea las rutas de transporte de Duitama.
+0 5 * * *  export EMAILS="mail1@yahoo.com,mail2@gmail.com" ; LOG_LEVEL=warn; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/transportePublico-duitama/diff_relation_query_public_transport_version2
 
 # Borra logs viejos de la ciclovia.
 0 0 * * * find ~/OSM-elements-change-tracker/ -maxdepth 1 -type f -name "*.log*" -mtime +15 -exec rm {} \;
 0 0 * * * find ~/OSM-elements-change-tracker/ -maxdepth 1 -type f -name "*.json" -mtime +15 -exec rm {} \;
 0 0 * * * find ~/OSM-elements-change-tracker/ -maxdepth 1 -type f -name "*.txt*" -mtime +15 -exec rm {} \;
 ```
+
+## Configuración de destinatarios para envío de reporte.
+
+El reporte generado queha detectado las diferencias, se puede enviar a
+múltiples buzones.
+Para esto es necesario establecer la variable de entorno justo antes
+de la ejecución:
+
+    export EMAILS="mail1@yahoo.com,mail2@gmail.com"
+

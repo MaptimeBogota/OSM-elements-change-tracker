@@ -1,0 +1,7 @@
+Paradero des buses de transporte público en Duitama
+ [out:csv(::id)];
+ area[name="Duitama"][admin_level=6][boundary=administrative]->.searchArea;
+ (
+   relation["public_transport:version"](area.searchArea);
+ );
+ out ids;
