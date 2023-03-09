@@ -46,6 +46,8 @@ declare -r ERROR_MISSING_LIBRARY=241
 declare -r ERROR_INVALID_ARGUMENT=242
 # 243: Logger utility is not available.
 declare -r ERROR_LOGGER_UTILITY=243
+# 244: Id download failed.
+declare -r ERROR_DOWNLOADING_IDS=244
 
 # Logger levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL.
 declare LOG_LEVEL="${LOG_LEVEL:-ERROR}"
@@ -209,39 +211,39 @@ function __checkPrereqs {
  # Checks prereqs.
  ## Wget
  if ! wget --version > /dev/null 2>&1 ; then
-  __loge "ERROR: Falta instalar wget."
+  __loge "Falta instalar wget."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## Mutt
  if ! mutt -v > /dev/null 2>&1 ; then
-  __loge "ERROR: Falta instalar mutt."
+  __loge "Falta instalar mutt."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## git
  if ! git --version > /dev/null 2>&1 ; then
-  echo "ERROR: Falta instalar git."
+  echo "Falta instalar git."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## flock
  if ! flock --version > /dev/null 2>&1 ; then
-  __loge "ERROR: Falta instalar flock."
+  __loge "Falta instalar flock."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## Bash 4 or greater.
  if [[ "${BASH_VERSINFO[0]}" -lt 4 ]] ; then
-  __loge "ERROR: Requiere Bash 4+."
+  __loge "Requiere Bash 4+."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## Checks if the process file exists.
  if [[ "${PROCESS_FILE}" != "" ]] && [[ ! -r "${PROCESS_FILE}" ]] ; then
-  __loge "ERROR: El archivo para obtener los ids no se encuentra: ${PROCESS_FILE}."
+  __loge "El archivo para obtener los ids no se encuentra: ${PROCESS_FILE}."
   exit "${ERROR_INVALID_ARGUMENT}"
  fi
  ## Checks process file structure.
  BASE_PROCESS_FILE_NAME=$(basename -s .sh "${PROCESS_FILE}")
 
  if [[ "${BASE_PROCESS_FILE_NAME:0:4}" != "diff" ]] ; then
-  __loge "ERROR: El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
+  __loge "El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe comenzar con 'diff'."
   exit "${ERROR_INVALID_ARGUMENT}"
  fi
@@ -249,14 +251,14 @@ function __checkPrereqs {
  METHOD_TO_GET_IDS=$(echo "${BASE_PROCESS_FILE_NAME}" | awk -F_ '{print $3}')
  if [[ "${ELEMENT_TYPE}" != "node" ]] && [[ "${ELEMENT_TYPE}" != "way" ]] \
    && [[ "${ELEMENT_TYPE}" != "relation" ]] ; then
-  __loge "ERROR: El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
+  __loge "El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe tener como token medio: 'node', 'way' o 'relation'."
   exit "${ERROR_INVALID_ARGUMENT}"
  fi
  ## Checks process file structure.
  if [[ "${METHOD_TO_GET_IDS}" != "query" ]] \
     && [[ "${METHOD_TO_GET_IDS}" != "ids" ]] ; then
-  __loge "ERROR: El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
+  __loge "El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe terminar indicando el tipo para obtener ids: 'query' o 'ids'."
   exit "${ERROR_INVALID_ARGUMENT}"
  fi
@@ -278,7 +280,7 @@ function __prepareEnv {
  TITLE=$(head -1 "${PROCESS_FILE}")
 
  if [[ "${TITLE}" == "" ]] ; then
-  __logw "WARN: El archivo no tiene un título."
+  __logw "El archivo no tiene un título."
  fi
 
  cat << EOF > "${REPORT}"
@@ -293,7 +295,7 @@ EOF
 # Retrieves the IDs of the elements to analyze. 
 function __generateIds {
  __log_start
- __logi "Obtiene los ids de las restricciones"
+ __logi "Obtiene los ids de las elementos."
  if [[ "${METHOD_TO_GET_IDS}" == "ids" ]] ; then
   tail -n +2 "${PROCESS_FILE}" > "${IDS_FILE}"
  else
@@ -303,8 +305,11 @@ function __generateIds {
   RET=${?}
   set -e
   if [[ "${RET}" -ne 0 ]] ; then
-  __loge "ERROR: Falló la descarga de los ids."
+   __loge "Falló la descarga de los ids."
+   exit "${ERROR_DOWNLOADING_IDS}"
   fi
+  tail -n +2 "${IDS_FILE}" > "${IDS_FILE}2"
+  mv "${IDS_FILE}2" "${IDS_FILE}"
  fi
  __log_finish
 }
@@ -333,7 +338,7 @@ EOF
   RET=${?}
   set -e
   if [[ "${RET}" -ne 0 ]] ; then
-   __logw "WARN: ${ELEMENT_TYPE} download failed ${ID}."
+   __logw "${ELEMENT_TYPE} falló descarga ${ID}."
    continue
   fi
  
