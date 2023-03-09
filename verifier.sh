@@ -20,6 +20,9 @@
 # diff_way_query : Checks the differences for the ways returned by this query.
 # diff_relation_ids : Checks the differences for the ids listed in this file.
 #
+# To check the last execution, you can just run:
+#   cd $(find /tmp/ -name "verifier_*" -type d -printf "%T@ %p\n"  | sort -n | cut -d' ' -f 2- | tail -n 1) ; tail -f verifier.log ; cd -
+#
 # Autor: Andres Gomez Casanova - AngocA
 # Version: 2023-03-07
 declare -r VERSION="2023-03-07"
@@ -56,6 +59,9 @@ declare -r SCRIPT_BASE_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" \
 # Logger framework.
 # Taken from https://github.com/DushyanthJyothi/bash-logger.
 declare -r LOGGER_UTILITY="${SCRIPT_BASE_DIRECTORY}/bash_logger.sh"
+
+# Mask for the files and directories.
+umask 0000
 
 # Name of this script.
 declare BASENAME
@@ -96,7 +102,7 @@ declare -r DIFF_FILE=${TMP_DIR}/reportDiff.txt
 declare -r EMAILS="${EMAILS:-angoca@yahoo.com}"
 
 # File that contains the ids or query to get the ids.
-declare PROCESS_FILE
+declare -r PROCESS_FILE=${PROCESS_TYPE}
 # Name of the file only.
 declare BASE_PROCESS_FILE_NAME
 # Type of differences to detect.
@@ -199,13 +205,6 @@ function __show_help {
 # Checks prerequisites to run the script.
 function __checkPrereqs {
  __log_start
- if [[ "${PROCESS_TYPE}" != "" ]] && [[ "${PROCESS_TYPE}" != "--help" ]] \
-   && [[ "${PROCESS_TYPE}" != "-h" ]] ; then
-  echo "ERROR: Parámetro inválido. Debe ser:"
-  echo " * Cadena vacía, nada."
-  echo " * --help"
-  exit "${ERROR_INVALID_ARGUMENT}"
- fi
  set +e
  # Checks prereqs.
  ## Wget
@@ -241,7 +240,7 @@ function __checkPrereqs {
  ## Checks process file structure.
  BASE_PROCESS_FILE_NAME=$(basename -s .sh "${PROCESS_FILE}")
 
- if [[ "${BASE_PROCESS_FILE_NAME:1:4}" != "diff" ]] ; then
+ if [[ "${BASE_PROCESS_FILE_NAME:0:4}" != "diff" ]] ; then
   __loge "ERROR: El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe comenzar con 'diff'."
   exit "${ERROR_INVALID_ARGUMENT}"
@@ -267,6 +266,7 @@ function __checkPrereqs {
 
 # Prepares and checks the environment to keep the history of the elements.
 function __prepareEnv {
+ __log_start
  mkdir -p "${HISTORIC_FILES_DIR}" > /dev/null
  cd "${HISTORIC_FILES_DIR}/"
  git init >> "${LOG_FILE}" 2>&1
@@ -287,10 +287,12 @@ Reporte de modificaciones de ${ELEMENT_TYPE} en ${TITLE} en OpenStreetMap.
 Hora de inicio: $(date || true).
 
 EOF
+ __log_finish
 }
 
 # Retrieves the IDs of the elements to analyze. 
 function __generateIds {
+ __log_start
  __logi "Obtiene los ids de las restricciones"
  if [[ "${METHOD_TO_GET_IDS}" == "ids" ]] ; then
   tail -n +2 "${PROCESS_FILE}" > "${IDS_FILE}"
@@ -304,74 +306,80 @@ function __generateIds {
   __loge "ERROR: Falló la descarga de los ids."
   fi
  fi
+ __log_finish
 }
 
 # Checks the history of the given elements.
 function __checkHistory {
-# Iterates over each element id.
-__logi "Processing elements..."
-while read -r ID ; do
- __logi "Processing ${ELEMENT_TYPE} with id ${ID}."
+ __log_start
+ # Iterates over each element id.
+ __logi "Processing elements..."
+ while read -r ID ; do
+  __logi "Processing ${ELEMENT_TYPE} with id ${ID}."
 
- # Query to retrieve the element.
- cat << EOF > "${QUERY_FILE}"
+  # Query to retrieve the element.
+  cat << EOF > "${QUERY_FILE}"
 [out:json];
 ${ELEMENT_TYPE}(${ID});
 (._;>;);
 out; 
 EOF
- cat "${QUERY_FILE}" >> "${LOG_FILE}"
+  cat "${QUERY_FILE}" >> "${LOG_FILE}"
 
- # Gets the geometry of the element.
- set +e
- wget -O "${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
-
- RET=${?}
- set -e
- if [[ "${RET}" -ne 0 ]] ; then
-  __logw "WARN: ${ELEMENT_TYPE} download failed ${ID}."
-  continue
- fi
- 
- # Removes the date from the file.
- sed -i'' -e '/"timestamp_osm_base":/d' "${ELEMENT_TYPE}-${ID}.json"
- rm -f "${ELEMENT_TYPE}-${ID}.json-e"
-
- # Process the downloaded file.
- if [[ -r "${HISTORIC_FILES_DIR}/${ELEMENT_TYPE}-${ID}.json" ]] ; then
-  # If there is an historic file, it compares it with the downloaded file.
-  echo "${ELEMENT_TYPE}-${ID}.json" >> "${DIFF_FILE}"
+  # Gets the geometry of the element.
   set +e
-  diff "${HISTORIC_FILES_DIR}/${ELEMENT_TYPE}-${ID}.json" "${ELEMENT_TYPE}-${ID}.json" >> "${DIFF_FILE}"
+  wget -O "${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
+
   RET=${?}
   set -e
-  if [[ ${RET} -ne 0 ]] ; then
+  if [[ "${RET}" -ne 0 ]] ; then
+   __logw "WARN: ${ELEMENT_TYPE} download failed ${ID}."
+   continue
+  fi
+ 
+  # Removes the date from the file.
+  sed -i'' -e '/"timestamp_osm_base":/d' "${ELEMENT_TYPE}-${ID}.json"
+  rm -f "${ELEMENT_TYPE}-${ID}.json-e"
+  # Removes the generator value from the file.
+  sed -i'' -e '/"generator":/d' "${ELEMENT_TYPE}-${ID}.json"
+  rm -f "${ELEMENT_TYPE}-${ID}.json-e"
+
+  # Process the downloaded file.
+  if [[ -r "${HISTORIC_FILES_DIR}/${ELEMENT_TYPE}-${ID}.json" ]] ; then
+   # If there is an historic file, it compares it with the downloaded file.
+   echo "${ELEMENT_TYPE}-${ID}.json" >> "${DIFF_FILE}"
+   set +e
+   diff "${HISTORIC_FILES_DIR}/${ELEMENT_TYPE}-${ID}.json" "${ELEMENT_TYPE}-${ID}.json" >> "${DIFF_FILE}"
+   RET=${?}
+   set -e
+   if [[ ${RET} -ne 0 ]] ; then
+    mv "${ELEMENT_TYPE}-${ID}.json" "${HISTORIC_FILES_DIR}/"
+    cd "${HISTORIC_FILES_DIR}/"
+    git commit "${ELEMENT_TYPE}-${ID}.json" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+    cd - > /dev/null
+    echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
+   else
+    rm "${ELEMENT_TYPE}-${ID}.json"
+   fi
+  else
+   # If there is no historic file, then it just moves the file in the historic.
    mv "${ELEMENT_TYPE}-${ID}.json" "${HISTORIC_FILES_DIR}/"
    cd "${HISTORIC_FILES_DIR}/"
-   git commit "${ELEMENT_TYPE}-${ID}.json" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "../${LOG_FILE}" 2>&1
+   git add "${ELEMENT_TYPE}-${ID}.json"
+   git commit "${ELEMENT_TYPE}-${ID}.json" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
    cd - > /dev/null
-   echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
-  else
-   rm "${ELEMENT_TYPE}-${ID}.json"
   fi
- else
-  # If there is no historic file, then it just moves the file in the historic.
-  mv "${ELEMENT_TYPE}-${ID}.json" "${HISTORIC_FILES_DIR}/"
-  cd "${HISTORIC_FILES_DIR}/"
-  git add "${ELEMENT_TYPE}-${ID}.json"
-  git commit "${ELEMENT_TYPE}-${ID}.json" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "../${LOG_FILE}" 2>&1
-  cd - > /dev/null
- fi
 
- # Waits between request to prevent errors in Overpass.
- sleep "${WAIT_TIME}"
+  # Waits between request to prevent errors in Overpass.
+  sleep "${WAIT_TIME}"
 
-done < "${IDS_FILE}"
-
+ done < "${IDS_FILE}"
+ __log_finish
 }
 
 # Sends the report of the modified elements.
 function __sendMail {
+ __log_start
  if [[ -f "${REPORT_CONTENT}" ]] ; then
   __logi "Sending mail."
   {
@@ -385,12 +393,15 @@ function __sendMail {
   echo "" | mutt -s "Detección de diferencias en ${TITLE}" -i "${REPORT}" -a "${DIFF_FILE}" -- "${EMAILS}" >> "${LOG_FILE}"
   __logi "Sending sent."
  fi
+ __log_finish
 }
 
 # Clean unnecessary files.
 function __cleanFiles {
+ __log_start
  __logi "Cleaning unnecessary files."
  rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}"
+ __log_finish
 }
 
 ######
@@ -423,8 +434,11 @@ flock -n 7
 {
  __prepareEnv
  __generateIds
+ set +E
  __checkHistory
+ set -E
  __sendMail
  __cleanFiles
  __logw "Ending process"
 } >> "${LOG_FILE}" 2>&1
+
