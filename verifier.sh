@@ -369,7 +369,7 @@ function __generateIds {
  __logi "Ids para: ${TITLE}"
  __logw "${PROCESS_FILE}"
  cat "${IDS_FILE}" >> "${LOG_FILE}"
- local TITLE_NO_SPACES=$(echo ${TITLE} | sed 's/ //g')
+ TITLE_NO_SPACES="${TITLE// / /}"
  cp "${IDS_FILE}" "${TITLE_NO_SPACES}"
  __addFile "${TITLE_NO_SPACES}"
  __log_finish
