@@ -300,6 +300,53 @@ EOF
  __log_finish
 }
 
+# Adds a file to the history.
+function __addFile {
+ local FILE="${1}"
+
+ if [[ -r "${HISTORIC_FILES_DIR}/${FILE}" ]] ; then
+  # If there is an historic file, it compares it with the downloaded file.
+  echo "${FILE}" >> "${DIFF_FILE}"
+  set +e
+  diff "${HISTORIC_FILES_DIR}/${FILE}" "${FILE}" >> "${DIFF_FILE}"
+  RET=${?}
+  set -e
+  if [[ ${RET} -ne 0 ]] ; then
+   mv "${FILE}" "${HISTORIC_FILES_DIR}/"
+   cd "${HISTORIC_FILES_DIR}/"
+   if [[ -n "${ID:-}" ]] ; then
+    git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+    cd - > /dev/null
+    echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
+   else
+    git commit "${FILE}" -m "New version of ${FILE}." >> "${LOG_FILE}" 2>&1
+    cd - > /dev/null
+    echo "* Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
+   fi
+  else
+   # The file is the same - no changes in the OSM element.
+   rm "${FILE}"
+  fi
+ else
+  # If there is no historic file, then it just moves the file in the historic.
+  mv "${FILE}" "${HISTORIC_FILES_DIR}/"
+  cd "${HISTORIC_FILES_DIR}/"
+  git add "${FILE}"
+  if [[ -n "${ID:-}" ]] ; then
+   git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+   cd - > /dev/null
+   # Include new files into the report.
+   echo "Nuevo https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
+  else
+   git commit "${FILE}" -m "Initial version of ${FILE}." >> "${LOG_FILE}" 2>&1
+   cd - > /dev/null
+   # Include new files into the report.
+   echo "Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
+  fi
+  cat "${FILE}" >> "${DIFF_FILE}"
+ fi
+}
+
 # Retrieves the IDs of the elements to analyze. 
 function __generateIds {
  __log_start
@@ -319,7 +366,12 @@ function __generateIds {
   tail -n +2 "${IDS_FILE}" > "${IDS_FILE}2"
   mv "${IDS_FILE}2" "${IDS_FILE}"
  fi
+ __logi "Ids para: ${TITLE}"
+ __logw "${PROCESS_FILE}"
  cat "${IDS_FILE}" >> "${LOG_FILE}"
+ local TITLE_NO_SPACES=$(echo ${TITLE} | sed 's/ //g')
+ cp "${IDS_FILE}" "${TITLE_NO_SPACES}"
+ __addFile "${TITLE_NO_SPACES}"
  __log_finish
 }
 
@@ -359,30 +411,7 @@ EOF
   rm -f "${ELEMENT_TYPE}-${ID}.json-e"
 
   # Process the downloaded file.
-  if [[ -r "${HISTORIC_FILES_DIR}/${ELEMENT_TYPE}-${ID}.json" ]] ; then
-   # If there is an historic file, it compares it with the downloaded file.
-   echo "${ELEMENT_TYPE}-${ID}.json" >> "${DIFF_FILE}"
-   set +e
-   diff "${HISTORIC_FILES_DIR}/${ELEMENT_TYPE}-${ID}.json" "${ELEMENT_TYPE}-${ID}.json" >> "${DIFF_FILE}"
-   RET=${?}
-   set -e
-   if [[ ${RET} -ne 0 ]] ; then
-    mv "${ELEMENT_TYPE}-${ID}.json" "${HISTORIC_FILES_DIR}/"
-    cd "${HISTORIC_FILES_DIR}/"
-    git commit "${ELEMENT_TYPE}-${ID}.json" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
-    cd - > /dev/null
-    echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
-   else
-    rm "${ELEMENT_TYPE}-${ID}.json"
-   fi
-  else
-   # If there is no historic file, then it just moves the file in the historic.
-   mv "${ELEMENT_TYPE}-${ID}.json" "${HISTORIC_FILES_DIR}/"
-   cd "${HISTORIC_FILES_DIR}/"
-   git add "${ELEMENT_TYPE}-${ID}.json"
-   git commit "${ELEMENT_TYPE}-${ID}.json" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
-   cd - > /dev/null
-  fi
+  __addFile "${ELEMENT_TYPE}-${ID}.json"
 
   # Waits between request to prevent errors in Overpass.
   sleep "${WAIT_TIME}"
