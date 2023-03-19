@@ -1,0 +1,7 @@
+Rutas de transporte público en Duitama
+ [out:csv(::id)];
+ area[name="Bogotá"][admin_level=7][boundary=administrative]->.searchArea;
+ (
+   relation["public_transport:version"](area.searchArea);
+ );
+ out ids;
