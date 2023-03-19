@@ -83,9 +83,9 @@ LOG_FILE="${TMP_DIR}/${BASENAME}.log"
 readonly LOG_FILE
 
 # Lock file for single execution.
-declare LOCK
-LOCK="/tmp/${BASENAME}.lock"
-readonly LOCK
+#declare LOCK
+#LOCK="/tmp/${BASENAME}.lock"
+#readonly LOCK
 
 # Type of process to run in the script.
 declare -r PROCESS_TYPE=${1:-}
@@ -306,13 +306,13 @@ function __addFile {
 
  if [[ -r "${HISTORIC_FILES_DIR}/${FILE}" ]] ; then
   # If there is an historic file, it compares it with the downloaded file.
-  echo "${FILE}" >> "${DIFF_FILE}"
+  echo "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   set +e
-  diff "${HISTORIC_FILES_DIR}/${FILE}" "${FILE}" >> "${DIFF_FILE}"
+  diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   RET=${?}
   set -e
   if [[ ${RET} -ne 0 ]] ; then
-   mv "${FILE}" "${HISTORIC_FILES_DIR}/"
+   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
    cd "${HISTORIC_FILES_DIR}/"
    if [[ -n "${ID:-}" ]] ; then
     git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
@@ -325,11 +325,11 @@ function __addFile {
    fi
   else
    # The file is the same - no changes in the OSM element.
-   rm "${FILE}"
+   rm "${TMP_DIR}/${FILE}"
   fi
  else
   # If there is no historic file, then it just moves the file in the historic.
-  mv "${FILE}" "${HISTORIC_FILES_DIR}/"
+  mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
   cd "${HISTORIC_FILES_DIR}/"
   git add "${FILE}"
   if [[ -n "${ID:-}" ]] ; then
@@ -343,7 +343,7 @@ function __addFile {
    # Include new files into the report.
    echo "Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
   fi
-  cat "${FILE}" >> "${DIFF_FILE}"
+  cat "${HISTORIC_FILES_DIR}/${FILE}" >> "${DIFF_FILE}"
  fi
 }
 
@@ -355,10 +355,10 @@ function __generateIds {
   tail -n +2 "${PROCESS_FILE}" > "${IDS_FILE}"
  else
   tail -n +2 "${PROCESS_FILE}" > "${QUERY_FILE}"
-  set +e
+  #set +e
   wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
   RET=${?}
-  set -e
+  #set -e
   if [[ "${RET}" -ne 0 ]] ; then
    __loge "Falló la descarga de los ids."
    exit "${ERROR_DOWNLOADING_IDS}"
@@ -369,9 +369,11 @@ function __generateIds {
  __logi "Ids para: ${TITLE}"
  __logw "${PROCESS_FILE}"
  cat "${IDS_FILE}" >> "${LOG_FILE}"
- TITLE_NO_SPACES="${TITLE// / /}"
- cp "${IDS_FILE}" "${TITLE_NO_SPACES}"
+ TITLE_NO_SPACES="${TITLE// /}"
+ cp "${IDS_FILE}" ${TMP_DIR}/"${TITLE_NO_SPACES}"
+ set +E
  __addFile "${TITLE_NO_SPACES}"
+ set -E
  __log_finish
 }
 
@@ -394,7 +396,7 @@ EOF
 
   # Gets the geometry of the element.
   set +e
-  wget -O "${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
+  wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
 
   RET=${?}
   set -e
@@ -404,14 +406,16 @@ EOF
   fi
  
   # Removes the date from the file.
-  sed -i'' -e '/"timestamp_osm_base":/d' "${ELEMENT_TYPE}-${ID}.json"
-  rm -f "${ELEMENT_TYPE}-${ID}.json-e"
+  sed -i'' -e '/"timestamp_osm_base":/d' "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json"
+  rm -f "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json-e"
   # Removes the generator value from the file.
-  sed -i'' -e '/"generator":/d' "${ELEMENT_TYPE}-${ID}.json"
-  rm -f "${ELEMENT_TYPE}-${ID}.json-e"
+  sed -i'' -e '/"generator":/d' "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json"
+  rm -f "i${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json-e"
 
   # Process the downloaded file.
+  set +E
   __addFile "${ELEMENT_TYPE}-${ID}.json"
+  set -E
 
   # Waits between request to prevent errors in Overpass.
   sleep "${WAIT_TIME}"
@@ -470,9 +474,9 @@ __checkPrereqs
 
 # Sets the trap in case of any signal.
 __trapOn
-exec 7> "${LOCK}"
-__logw "Validating only execution." | tee -a "${LOG_FILE}"
-flock -n 7
+#exec 7> "${LOCK}"
+#__logw "Validating only execution." | tee -a "${LOG_FILE}"
+#flock -n 7
 
 {
  __prepareEnv
