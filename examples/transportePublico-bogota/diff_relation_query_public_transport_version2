@@ -1,4 +1,4 @@
-Rutas de transporte público en Duitama
+Rutas de transporte público en Bogotá
  [out:csv(::id)];
  area[name="Bogotá"][admin_level=7][boundary=administrative]->.searchArea;
  (
