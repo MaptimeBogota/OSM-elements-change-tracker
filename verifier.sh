@@ -179,7 +179,7 @@ function __trapOn() {
 function __show_help {
  echo "${BASENAME} version ${VERSION}"
  echo "Este script revisa los cambios de elementos en OpenStreetMap. Primero"
- echo "identifica qué se debe revisar, y después decarga cada uno de los"
+ echo "identifica qué se debe revisar, y después descarga cada uno de los"
  echo "elementos. Posteriormente los compara con un histórico, y si identifica"
  echo "cambios, los reporta por medio de un mensaje de correo electrónico."
  echo
