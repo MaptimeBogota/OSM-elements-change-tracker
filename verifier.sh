@@ -25,11 +25,18 @@
 # diff_relation_ids : Checks the differences for the ids listed in this file.
 #
 # To check the last execution, you can just run:
-#   cd $(find /tmp/ -name "verifier_*" -type d -printf "%T@ %p\n"  | sort -n | cut -d' ' -f 2- | tail -n 1) ; tail -f verifier.log ; cd -
+#   cd $(find /tmp/ -name "verifier_*" -type d -printf "%T@ %p\n" 2> /dev/null | sort -n | cut -d' ' -f 2- | tail -n 1) ; tail -f verifier.log ; cd -
+#
+# The following environment variables helps to configure the app:
+# * CLEAN_FILES : Cleans all files at the end.
+# * EMAILS : List of emails to send the report, separated by comma.
+# * LOG_LEVEL : Log level in capitals.
+#
+# export EMAILS="angoca@yahoo.com" ; export LOG_LEVEL=WARN; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/mosqueraCentro/diff_relation_query_todo
 #
 # Autor: Andres Gomez Casanova - AngocA
-# Version: 2023-03-07
-declare -r VERSION="2023-03-07"
+# Version: 2023-06-26
+declare -r VERSION="2023-06-26"
 
 #set -xv
 # Fails when a variable is not initialized.
@@ -55,6 +62,9 @@ declare -r ERROR_DOWNLOADING_IDS=244
 
 # Logger levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL.
 declare LOG_LEVEL="${LOG_LEVEL:-ERROR}"
+
+# Clean files.
+declare CLEAN_FILES="${CLEAN_FILES:-true}"
 
 # Base directory, where the script resides.
 # Taken from https://stackoverflow.com/questions/59895/how-can-i-get-the-source-directory-of-a-bash-script-from-within-the-script-itsel
@@ -446,8 +456,10 @@ function __sendMail {
 # Clean unnecessary files.
 function __cleanFiles {
  __log_start
- __logi "Cleaning unnecessary files."
- rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}"
+ if [ "${CLEAN_FILES}" = "true" ] ; then
+  __logi "Cleaning unnecessary files."
+  rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}"
+ fi
  __log_finish
 }
 
