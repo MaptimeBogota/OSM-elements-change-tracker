@@ -5,3 +5,4 @@ Rutas de transporte público en Duitama
    relation["public_transport:version"](area.searchArea);
  );
  out ids;
+

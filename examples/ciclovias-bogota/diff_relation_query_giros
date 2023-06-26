@@ -4,3 +4,4 @@ Restricciones de giro por ciclovía
    relation["restriction:conditional"]["name"="Ciclovia"];
  );
  out ids;
+

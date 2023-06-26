@@ -5,3 +5,4 @@ Paraderos de buses de transporte público en Duitama
    node["public_transport"](area.searchArea);
  );
  out ids;
+
