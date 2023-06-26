@@ -1,8 +1,8 @@
-Nodos en el centro histórico de Mosquera
+Vías en el centro histórico de Mosquera
  [out:csv(::id)];
  area["landuse"="residential"][name="Centro antiguo Mosquera"]->.searchArea;
  (
-   node(area.searchArea);
+   way(area.searchArea);
  );
  out ids;
 
