@@ -1,0 +1,8 @@
+Vías del barrio Canódromo, Suba, Bogotá
+ [out:csv(::id)];
+ area["admin_level"="10"][name="Barrio Canódromo"]->.searchArea;
+ (
+   way(area.searchArea);
+ );
+ out ids;
+

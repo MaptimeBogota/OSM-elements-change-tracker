@@ -1,0 +1,8 @@
+Relaciones del barrio Canódromo, Suba, Bogotá
+ [out:csv(::id)];
+ area["admin_level"="10"][name="Barrio Canódromo"]->.searchArea;
+ (
+   relation(area.searchArea);
+ );
+ out ids;
+
