@@ -1,0 +1,8 @@
+Nodos del barrio Canódromo, Suba, Bogotá
+ [out:csv(::id)];
+ area["admin_level"="10"][name="Prado Veraniego Sur]->.searchArea;
+ (
+   node(area.searchArea);
+ );
+ out ids;
+
