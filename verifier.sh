@@ -376,7 +376,7 @@ function __generateIds {
   tail -n +2 "${IDS_FILE}" > "${IDS_FILE}2"
   mv "${IDS_FILE}2" "${IDS_FILE}"
  fi
- __logi "Ids para: ${TITLE}"
+ __logi "Ids para: ${TITLE}."
  __logw "${PROCESS_FILE}"
  cat "${IDS_FILE}" >> "${LOG_FILE}"
  TITLE_NO_SPACES="${TITLE// /}"
@@ -391,9 +391,9 @@ function __generateIds {
 function __checkHistory {
  __log_start
  # Iterates over each element id.
- __logi "Processing elements..."
+ __logi "Procesando elementos..."
  while read -r ID ; do
-  __logi "Processing ${ELEMENT_TYPE} with id ${ID}."
+  __logi "Procesando ${ELEMENT_TYPE} con id ${ID}."
 
   # Query to retrieve the element.
   cat << EOF > "${QUERY_FILE}"
@@ -438,17 +438,17 @@ EOF
 function __sendMail {
  __log_start
  if [[ -f "${REPORT_CONTENT}" ]] ; then
-  __logi "Sending mail."
+  __logi "Enviando mensaje por correo electrónico."
   {
    cat "${REPORT_CONTENT}"
    echo
    echo "Hora de fin: $(date || true)"
    echo
-   echo "Este reporte fue creado por medio de el script verificador:"
+   echo "Este reporte fue creado por medio del script verificador:"
    echo "https://github.com/MaptimeBogota/OSM-elements-change-tracker" 
   } >> "${REPORT}"
   echo "" | mutt -s "Detección de diferencias en ${TITLE}" -i "${REPORT}" -a "${DIFF_FILE}" -- "${EMAILS}" >> "${LOG_FILE}"
-  __logi "Sending sent."
+  __logi "Mensaje enviado."
  fi
  __log_finish
 }
@@ -457,7 +457,7 @@ function __sendMail {
 function __cleanFiles {
  __log_start
  if [ "${CLEAN_FILES}" = "true" ] ; then
-  __logi "Cleaning unnecessary files."
+  __logi "Limpiando archivos innecesarios."
   rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}"
  fi
  __log_finish
@@ -471,9 +471,9 @@ chmod go+x "${TMP_DIR}"
 
 {
  __start_logger
- __logi "Preparing the environment."
- __logd "Output saved at: ${TMP_DIR}"
- __logi "Processing: ${PROCESS_TYPE}"
+ __logi "Preparando el ambiente."
+ __logd "Salida guardada en: ${TMP_DIR}."
+ __logi "Procesando tipo de elemento: ${PROCESS_TYPE}."
 } >> "${LOG_FILE}" 2>&1
 
 if [[ "${PROCESS_TYPE}" == "-h" ]] || [[ "${PROCESS_TYPE}" == "--help" ]]; then
@@ -481,14 +481,11 @@ if [[ "${PROCESS_TYPE}" == "-h" ]] || [[ "${PROCESS_TYPE}" == "--help" ]]; then
 fi
 __checkPrereqs
 {
- __logw "Starting process."
+ __logw "Comenzando el proceso."
 } >> "${LOG_FILE}" 2>&1
 
 # Sets the trap in case of any signal.
 __trapOn
-#exec 7> "${LOCK}"
-#__logw "Validating only execution." | tee -a "${LOG_FILE}"
-#flock -n 7
 
 {
  __prepareEnv
@@ -498,6 +495,6 @@ __trapOn
  set -E
  __sendMail
  __cleanFiles
- __logw "Ending process"
+ __logw "Proceso terminado."
 } >> "${LOG_FILE}" 2>&1
 
