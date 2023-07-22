@@ -290,14 +290,14 @@ function __checkPrereqs {
 
 # Puts a lock for the git commands.
 function __put_lock {
- exec 7> "${LOCK}"
- __logw "Validating only execution." | tee -a "${LOG_FILE}"
+ __logw "Validating only one git execution."
  flock -n 7
 }
 
 # Releases the lock after the git commands.
 function __release_lock {
-
+ __logw "Releasing lock for only one git execution."
+ flock -u 7
 }
 
 # Prepares and checks the environment to keep the history of the elements.
@@ -340,13 +340,17 @@ function __addFile {
   if [[ ${RET} -ne 0 ]] ; then
    mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
    cd "${HISTORIC_FILES_DIR}/"
-   # TODO validate concurrency only one process.
+   # Validates concurrency, only one git process.
    if [[ -n "${ID:-}" ]] ; then
+    __put_lock
     git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+    __release_lock
     cd - > /dev/null
     echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
    else
+    __put_lock
     git commit "${FILE}" -m "New version of ${FILE}." >> "${LOG_FILE}" 2>&1
+    __release_lock
     cd - > /dev/null
     echo "* Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
    fi
@@ -358,15 +362,21 @@ function __addFile {
   # If there is no historic file, then it just moves the file in the historic.
   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
   cd "${HISTORIC_FILES_DIR}/"
-  # TODO validate concurrency only one process.
+  # Validates concurrency, only one git process.
+  __put_lock
   git add "${FILE}"
+  __release_lock
   if [[ -n "${ID:-}" ]] ; then
+   __put_lock
    git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+   __release_lock
    cd - > /dev/null
    # Include new files into the report.
    echo "Nuevo https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
   else
+   __put_lock
    git commit "${FILE}" -m "Initial version of ${FILE}." >> "${LOG_FILE}" 2>&1
+   __release_lock
    cd - > /dev/null
    # Include new files into the report.
    echo "Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
@@ -503,6 +513,7 @@ __checkPrereqs
 
 # Sets the trap in case of any signal.
 __trapOn
+exec 7> "${LOCK}"
 
 {
  __prepareEnv
