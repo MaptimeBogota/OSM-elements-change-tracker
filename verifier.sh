@@ -16,18 +16,20 @@
 # The file should start with diff. It is separated by underscore. The middle
 # word specifies if the analisys is for: node, way, relation; only one
 # type of element is possible. The final word specifies if the elements are
-# retrieved with another query or a list of ids. When it is a query, the file
+# retrieved with a query or a list of ids. When it is a query, the file
 # should contain a valid Overpass query retrieving the ids of the elements to
 # analyze; when it is a list of ids, each id of the type of element should be
 # in a different line. The first line of the file contains the title of the
 # analisys.
+#
 # diff_way_query : Checks the differences for the ways returned by this query.
-# diff_relation_ids : Checks the differences for the ids listed in this file.
+# diff_relation_ids : Checks the differences for the ids of the relations listed
+# in this file.
 #
 # To check the last execution, you can just run:
 #   cd $(find /tmp/ -name "verifier_*" -type d -printf "%T@ %p\n" 2> /dev/null | sort -n | cut -d' ' -f 2- | tail -n 1) ; tail -f verifier.log ; cd -
 #
-# The following environment variables helps to configure the app:
+# The following environment variables helps to configure the script:
 # * CLEAN_FILES : Cleans all files at the end.
 # * EMAILS : List of emails to send the report, separated by comma.
 # * LOG_LEVEL : Log level in capitals.
@@ -41,7 +43,7 @@ declare -r VERSION="2023-06-26"
 #set -xv
 # Fails when a variable is not initialized.
 set -u
-# Fails with an non-zero return code.
+# Fails with a non-zero return code.
 set -e
 # Fails if the commands of a pipe return non-zero.
 set -o pipefail
@@ -92,10 +94,10 @@ declare LOG_FILE
 LOG_FILE="${TMP_DIR}/${BASENAME}.log"
 readonly LOG_FILE
 
-# Lock file for single execution.
-#declare LOCK
-#LOCK="/tmp/${BASENAME}.lock"
-#readonly LOCK
+# Lock file for single git execution.
+declare LOCK
+LOCK="/tmp/${BASENAME}.lock"
+readonly LOCK
 
 # Type of process to run in the script.
 declare -r PROCESS_TYPE=${1:-}
@@ -112,8 +114,10 @@ declare -ir WAIT_TIME=2
 declare -r REPORT=${TMP_DIR}/report.txt
 # Report content.
 declare -r REPORT_CONTENT=${TMP_DIR}/reportContent.txt
-# Differences file
+# Differences file.
 declare -r DIFF_FILE=${TMP_DIR}/reportDiff.txt
+# Differences current.
+declare -r DIFF_CURRENT=${TMP_DIR}/reportCurrentDiff.txt
 # Mails to send the report.
 declare -r EMAILS="${EMAILS:-angoca@yahoo.com}"
 
@@ -227,22 +231,22 @@ function __checkPrereqs {
  __log_start
  set +e
  # Checks prereqs.
- ## Wget
+ ## Wget.
  if ! wget --version > /dev/null 2>&1 ; then
   __loge "Falta instalar wget."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
- ## Mutt
+ ## Mutt.
  if ! mutt -v > /dev/null 2>&1 ; then
   __loge "Falta instalar mutt."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
- ## git
+ ## git.
  if ! git --version > /dev/null 2>&1 ; then
   echo "Falta instalar git."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
- ## flock
+ ## flock.
  if ! flock --version > /dev/null 2>&1 ; then
   __loge "Falta instalar flock."
   exit "${ERROR_MISSING_LIBRARY}"
@@ -282,6 +286,18 @@ function __checkPrereqs {
  fi
  __log_finish
  set -e
+}
+
+# Puts a lock for the git commands.
+function __put_lock {
+ exec 7> "${LOCK}"
+ __logw "Validating only execution." | tee -a "${LOG_FILE}"
+ flock -n 7
+}
+
+# Releases the lock after the git commands.
+function __release_lock {
+
 }
 
 # Prepares and checks the environment to keep the history of the elements.
@@ -324,6 +340,7 @@ function __addFile {
   if [[ ${RET} -ne 0 ]] ; then
    mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
    cd "${HISTORIC_FILES_DIR}/"
+   # TODO validate concurrency only one process.
    if [[ -n "${ID:-}" ]] ; then
     git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
     cd - > /dev/null
@@ -341,6 +358,7 @@ function __addFile {
   # If there is no historic file, then it just moves the file in the historic.
   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
   cd "${HISTORIC_FILES_DIR}/"
+  # TODO validate concurrency only one process.
   git add "${FILE}"
   if [[ -n "${ID:-}" ]] ; then
    git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
@@ -353,6 +371,7 @@ function __addFile {
    # Include new files into the report.
    echo "Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
   fi
+  # Diff file DIFF_CURRENT
   cat "${HISTORIC_FILES_DIR}/${FILE}" >> "${DIFF_FILE}"
  fi
 }
@@ -365,10 +384,8 @@ function __generateIds {
   tail -n +2 "${PROCESS_FILE}" > "${IDS_FILE}"
  else
   tail -n +2 "${PROCESS_FILE}" > "${QUERY_FILE}"
-  #set +e
   wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
   RET=${?}
-  #set -e
   if [[ "${RET}" -ne 0 ]] ; then
    __loge "Falló la descarga de los ids."
    exit "${ERROR_DOWNLOADING_IDS}"
@@ -405,9 +422,9 @@ EOF
   cat "${QUERY_FILE}" >> "${LOG_FILE}"
 
   # Gets the geometry of the element.
+  # TODO validates the file was downloaded, or an error was retrieved. This happens when exceding the quota.
   set +e
   wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
-
   RET=${?}
   set -e
   if [[ "${RET}" -ne 0 ]] ; then
