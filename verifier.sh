@@ -332,6 +332,7 @@ function __addFile {
 
  if [[ -r "${HISTORIC_FILES_DIR}/${FILE}" ]] ; then
   # If there is an historic file, it compares it with the downloaded file.
+  # Diff file DIFF_CURRENT
   echo "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   set +e
   diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
@@ -381,7 +382,6 @@ function __addFile {
    # Include new files into the report.
    echo "Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
   fi
-  # Diff file DIFF_CURRENT
   cat "${HISTORIC_FILES_DIR}/${FILE}" >> "${DIFF_FILE}"
  fi
 }
@@ -406,7 +406,9 @@ function __generateIds {
  __logi "Ids para: ${TITLE}."
  __logw "${PROCESS_FILE}"
  cat "${IDS_FILE}" >> "${LOG_FILE}"
- TITLE_NO_SPACES="${TITLE// /}"
+
+ # Adds the IDs list in a file, to keep track of the monitored elements.
+ TITLE_NO_SPACES="ids-${TITLE// /}.txt"
  cp "${IDS_FILE}" ${TMP_DIR}/"${TITLE_NO_SPACES}"
  set +E
  __addFile "${TITLE_NO_SPACES}"
@@ -432,13 +434,23 @@ EOF
   cat "${QUERY_FILE}" >> "${LOG_FILE}"
 
   # Gets the geometry of the element.
-  # TODO validates the file was downloaded, or an error was retrieved. This happens when exceding the quota.
   set +e
   wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
   RET=${?}
   set -e
+  # Checks if the downloaded element was successful.
   if [[ "${RET}" -ne 0 ]] ; then
    __logw "${ELEMENT_TYPE} falló descarga ${ID}."
+   continue
+  fi
+  set +e
+  ERROR_QTY=$(grep Error "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" | wc -l)
+  set -e
+
+  # Checks if the downloaded element contains errors.
+  if [[ "${ERROR_QTY}" -ne 0 ]] ; then
+   __logw "Hubo un error en la descaga del elemento ${ELEMENT_TYPE} con id ${ID}."
+   __logi "$(cat "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json")"
    continue
   fi
  
