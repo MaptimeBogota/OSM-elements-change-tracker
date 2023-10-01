@@ -1,4 +1,4 @@
-Vías que dejaron de estar en construcción
+Vías con estado: en construcción
  [out:csv(::id)];
  area[name="Bogotá"][admin_level=7][boundary=administrative]->.searchArea;
  (
