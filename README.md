@@ -44,7 +44,7 @@ Para esto hay que generar un password desde Gmail.
 
 # Corre el verificador en rutas de transporte de Duitama.
 # Chequea las rutas de transporte de Duitama.
-0 5 * * *  export EMAILS="mail1@yahoo.com,mail2@gmail.com" ; LOG_LEVEL=warn; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/transportePublico-duitama/diff_relation_query_public_transport_version2
+0 5 * * *  export EMAILS="mail1@yahoo.com,mail2@gmail.com" ; export LOG_LEVEL=WARN; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/transportePublico-duitama/diff_relation_query_public_transport_version2
 
 # Borra logs viejos de la ciclovia.
 0 0 * * * find ~/OSM-elements-change-tracker/ -maxdepth 1 -type f -name "*.log*" -mtime +15 -exec rm {} \;
@@ -54,7 +54,7 @@ Para esto hay que generar un password desde Gmail.
 
 ## Configuración de destinatarios para envío de reporte.
 
-El reporte generado queha detectado las diferencias, se puede enviar a
+El reporte generado que ha detectado las diferencias, se puede enviar a
 múltiples buzones.
 Para esto es necesario establecer la variable de entorno justo antes
 de la ejecución:
