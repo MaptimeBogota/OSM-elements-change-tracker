@@ -116,8 +116,8 @@ declare -r REPORT=${TMP_DIR}/report.txt
 declare -r REPORT_CONTENT=${TMP_DIR}/reportContent.txt
 # Differences file.
 declare -r DIFF_FILE=${TMP_DIR}/reportDiff.txt
-# Differences current.
-declare -r DIFF_CURRENT=${TMP_DIR}/reportCurrentDiff.txt
+# Details differences.
+declare -r DETAILS_DIFF=${TMP_DIR}/detailsDiff.txt
 # Mails to send the report.
 declare -r EMAILS="${EMAILS:-angoca@yahoo.com}"
 
@@ -290,14 +290,18 @@ function __checkPrereqs {
 
 # Puts a lock for the git commands.
 function __put_lock {
- __logw "Validating only one git execution."
+ __log_start
+ __logw "Validando una sola ejecución de git."
  flock -n 7
+ __log_finish
 }
 
 # Releases the lock after the git commands.
 function __release_lock {
- __logw "Releasing lock for only one git execution."
+ __log_start
+ __logw "Liberando candado para una sola ejecución de git."
  flock -u 7
+ __log_finish
 }
 
 # Prepares and checks the environment to keep the history of the elements.
@@ -326,40 +330,110 @@ EOF
  __log_finish
 }
 
+# Gets a details of the differences for an element.
+function __getDifferenceType {
+ __log_start
+ diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" > "${DETAILS_DIFF}"
+ # Nodes
+ if [[ "${FILE:0-4}" == "node" ]] ; then
+  __logd "Diferencias para nodos."
+  LAT_DIFF_QTY=$(grep -c '^[<>]   "lat": ' "${DETAILS_DIFF}")
+  LON_DIFF_QTY=$(grep -c '^[<>]   "lon": ' "${DETAILS_DIFF}")
+  TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
+  DIFFERENCE_DETAIL="Cambios en "
+  if [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]] ; then
+   __logd "Diferencia de coordenadas."
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} coordenadas "
+  elif [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -eq 0 ]] ; then
+   __logd "Diferencia de latitud."
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} latitud "
+  elif [[ "${LAT_DIFF_QTY}" -eq 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]] ; then
+   __logd "Diferencia de longitud."
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} longitud "
+  fi
+  if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
+   DIFFERENCE_DETAIL="etiquetas "
+  fi
+ fi
+ if [[ "${FILE:0-3}" == "way" ]] ; then
+  __logd "Diferencias para vías."
+  NODES_DIFF_QTY=$(grep -c '^[<>]     \d,' "${DETAILS_DIFF}")
+  TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
+  DIFFERENCE_DETAIL="Cambios en "
+  if [[ "${NODES_DIFF_QTY}" -ne 0 ]]; then
+   __logd "Diferencia de cantidad de nodos."
+   DIFFERENCE_DETAIL=" cantidad de nodos "
+  fi
+  if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
+   __logd "Diferencia de etiquetas."
+   DIFFERENCE_DETAIL="etiquetas "
+  fi
+ fi
+ if [[ "${FILE:0-8}" == "relation" ]] ; then
+  __logd "Diferencias para relaciones."
+  NODES_OR_WAYS_DIFF_QTY=$(grep '^[<>]     \d,' "${DETAILS_DIFF}")
+  TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
+  ROLES_DIFF_QTY=$(grep -c '^[<>]       "role": ' "${DETAILS_DIFF}")
+  DIFFERENCE_DETAIL="Cambios en "
+  if [[ "${NODES_OR_WAYS_DIFF_QTY}" -ne 0 ]]; then
+   __logd "Diferencia de cantidad de nodos o vías."
+   DIFFERENCE_DETAIL=" cantidad de nodos o vías "
+  fi
+  if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
+   DIFFERENCE_DETAIL=" etiquetas "
+   __logd "Diferencia de etiquetas."
+  fi
+  if [[ "${ROLES_DIFF_QTY}" -ne 0 ]]; then
+   __logd "Diferencia de roles."
+   DIFFERENCE_DETAIL=" roles "
+  fi
+ fi
+ __log_finish
+}
+
 # Adds a file to the history.
 function __addFile {
+ __log_start
  local FILE="${1}"
 
  if [[ -r "${HISTORIC_FILES_DIR}/${FILE}" ]] ; then
+  __logd "Se puede leer el archivo, entonces se procesa."
   # If there is an historic file, it compares it with the downloaded file.
-  # Diff file DIFF_CURRENT
   echo "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   set +e
   diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   RET=${?}
   set -e
   if [[ ${RET} -ne 0 ]] ; then
+   __logd "Hay diferencias en la cantidad de objetos."
    mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
    cd "${HISTORIC_FILES_DIR}/"
    # Validates concurrency, only one git process.
    if [[ -n "${ID:-}" ]] ; then
+    __logd "Agregando una nueva versión de un elemento."
+    __getDifferenceType
     __put_lock
     git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
     __release_lock
     cd - > /dev/null
     echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
+    echo "${DIFFERENCE_DETAIL}" >> "${REPORT_CONTENT}"
    else
+    __logd "Agregando una nueva versión de lista de IDs."
     __put_lock
     git commit "${FILE}" -m "New version of ${FILE}." >> "${LOG_FILE}" 2>&1
+    sdiff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
     __release_lock
     cd - > /dev/null
-    echo "* Nuevo conjunto de IDs." >> "${REPORT_CONTENT}"
+    echo "* Diferencias en el conjunto de IDs." >> "${REPORT_CONTENT}"
    fi
   else
+   __logd "No hay diferencias en la cantidad de objetos."
    # The file is the same - no changes in the OSM element.
    rm "${TMP_DIR}/${FILE}"
   fi
  else
+  __logd "Agregando un nuevo archivo."
   # If there is no historic file, then it just moves the file in the historic.
   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
   cd "${HISTORIC_FILES_DIR}/"
@@ -368,6 +442,7 @@ function __addFile {
   git add "${FILE}"
   __release_lock
   if [[ -n "${ID:-}" ]] ; then
+   __logd "Agregando un nuevo archivo de un elemento."
    __put_lock
    git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
    __release_lock
@@ -375,6 +450,7 @@ function __addFile {
    # Include new files into the report.
    echo "Nuevo https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
   else
+   __logd "Agregando un nuevo archivo de lista de IDs."
    __put_lock
    git commit "${FILE}" -m "Initial version of ${FILE}." >> "${LOG_FILE}" 2>&1
    __release_lock
@@ -384,6 +460,7 @@ function __addFile {
   fi
   cat "${HISTORIC_FILES_DIR}/${FILE}" >> "${DIFF_FILE}"
  fi
+ __log_finish
 }
 
 # Retrieves the IDs of the elements to analyze. 
@@ -391,8 +468,10 @@ function __generateIds {
  __log_start
  __logi "Obtiene los ids de las elementos."
  if [[ "${METHOD_TO_GET_IDS}" == "ids" ]] ; then
+  __logd "Lista de IDs definida."
   tail -n +2 "${PROCESS_FILE}" > "${IDS_FILE}"
  else
+  __logd "IDs por query."
   tail -n +2 "${PROCESS_FILE}" > "${QUERY_FILE}"
   wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
   RET=${?}
@@ -409,7 +488,7 @@ function __generateIds {
 
  # Adds the IDs list in a file, to keep track of the monitored elements.
  TITLE_NO_SPACES="ids-${TITLE// /}.txt"
- cp "${IDS_FILE}" ${TMP_DIR}/"${TITLE_NO_SPACES}"
+ cp "${IDS_FILE}" "${TMP_DIR}"/"${TITLE_NO_SPACES}"
  set +E
  __addFile "${TITLE_NO_SPACES}"
  set -E
@@ -444,13 +523,13 @@ EOF
    continue
   fi
   set +e
-  ERROR_QTY=$(grep Error "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" | wc -l)
+  ERROR_QTY=$(grep -c Error "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json")
   set -e
 
   # Checks if the downloaded element contains errors.
   if [[ "${ERROR_QTY}" -ne 0 ]] ; then
    __logw "Hubo un error en la descaga del elemento ${ELEMENT_TYPE} con id ${ID}."
-   __logi "$(cat "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json")"
+   __logi "$(cat "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" || true)"
    continue
   fi
  
@@ -495,9 +574,9 @@ function __sendMail {
 # Clean unnecessary files.
 function __cleanFiles {
  __log_start
- if [ "${CLEAN_FILES}" = "true" ] ; then
+ if [[ "${CLEAN_FILES}" = "true" ]] ; then
   __logi "Limpiando archivos innecesarios."
-  rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}"
+  rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}" "${DETAILS_DIFF}"
  fi
  __log_finish
 }
