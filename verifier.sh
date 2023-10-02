@@ -36,6 +36,10 @@
 #
 # export EMAILS="angoca@yahoo.com" ; export LOG_LEVEL=WARN; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/mosqueraCentro/diff_relation_query_todo
 #
+# For contributing, please execute these commands at the end:
+# * shellcheck -x -o all verifier.sh
+# * shfmt -w -i 1 -sr -bn verifier.sh
+#
 # Autor: Andres Gomez Casanova - AngocA
 # Version: 2023-06-26
 declare -r VERSION="2023-06-26"
@@ -72,7 +76,7 @@ declare CLEAN_FILES="${CLEAN_FILES:-true}"
 # Taken from https://stackoverflow.com/questions/59895/how-can-i-get-the-source-directory-of-a-bash-script-from-within-the-script-itsel
 # shellcheck disable=SC2155
 declare -r SCRIPT_BASE_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" \
-  &> /dev/null && pwd)"
+ &> /dev/null && pwd)"
 
 # Logger framework.
 # Taken from https://github.com/DushyanthJyothi/bash-logger.
@@ -160,14 +164,14 @@ function __log_finish() { :; }
 
 # Starts the logger utility.
 function __start_logger() {
- if [[ -f "${LOGGER_UTILITY}" ]] ; then
+ if [[ -f "${LOGGER_UTILITY}" ]]; then
   # Starts the logger mechanism.
   set +e
   # shellcheck source=./bash_logger.sh
   source "${LOGGER_UTILITY}"
   local -i RET=${?}
   set -e
-  if [[ "${RET}" -ne 0 ]] ; then
+  if [[ "${RET}" -ne 0 ]]; then
    printf "\nERROR: El archivo de framework de logger es inválido.\n"
    exit "${ERROR_LOGGER_UTILITY}"
   fi
@@ -183,9 +187,9 @@ function __start_logger() {
 function __trapOn() {
  __log_start
  trap '{ printf "%s ERROR: El script no terminó correctamente. Número de línea: %d.\n" "$(date +%Y%m%d_%H:%M:%S)" "${LINENO}"; exit ;}' \
-   ERR
+  ERR
  trap '{ printf "%s WARN: El script fue terminado.\n" "$(date +%Y%m%d_%H:%M:%S)"; exit ;}' \
-   SIGINT SIGTERM
+  SIGINT SIGTERM
  __log_finish
 }
 
@@ -232,39 +236,39 @@ function __checkPrereqs {
  set +e
  # Checks prereqs.
  ## Wget.
- if ! wget --version > /dev/null 2>&1 ; then
+ if ! wget --version > /dev/null 2>&1; then
   __loge "Falta instalar wget."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## Mutt.
- if ! mutt -v > /dev/null 2>&1 ; then
+ if ! mutt -v > /dev/null 2>&1; then
   __loge "Falta instalar mutt."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## git.
- if ! git --version > /dev/null 2>&1 ; then
+ if ! git --version > /dev/null 2>&1; then
   echo "Falta instalar git."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## flock.
- if ! flock --version > /dev/null 2>&1 ; then
+ if ! flock --version > /dev/null 2>&1; then
   __loge "Falta instalar flock."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## Bash 4 or greater.
- if [[ "${BASH_VERSINFO[0]}" -lt 4 ]] ; then
+ if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
   __loge "Requiere Bash 4+."
   exit "${ERROR_MISSING_LIBRARY}"
  fi
  ## Checks if the process file exists.
- if [[ "${PROCESS_FILE}" != "" ]] && [[ ! -r "${PROCESS_FILE}" ]] ; then
+ if [[ "${PROCESS_FILE}" != "" ]] && [[ ! -r "${PROCESS_FILE}" ]]; then
   __loge "El archivo para obtener los ids no se encuentra: ${PROCESS_FILE}."
   exit "${ERROR_INVALID_ARGUMENT}"
  fi
  ## Checks process file structure.
  BASE_PROCESS_FILE_NAME=$(basename -s .sh "${PROCESS_FILE}")
 
- if [[ "${BASE_PROCESS_FILE_NAME:0:4}" != "diff" ]] ; then
+ if [[ "${BASE_PROCESS_FILE_NAME:0:4}" != "diff" ]]; then
   __loge "El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe comenzar con 'diff'."
   exit "${ERROR_INVALID_ARGUMENT}"
@@ -272,14 +276,14 @@ function __checkPrereqs {
  ELEMENT_TYPE=$(echo "${BASE_PROCESS_FILE_NAME}" | awk -F_ '{print $2}')
  METHOD_TO_GET_IDS=$(echo "${BASE_PROCESS_FILE_NAME}" | awk -F_ '{print $3}')
  if [[ "${ELEMENT_TYPE}" != "node" ]] && [[ "${ELEMENT_TYPE}" != "way" ]] \
-   && [[ "${ELEMENT_TYPE}" != "relation" ]] ; then
+  && [[ "${ELEMENT_TYPE}" != "relation" ]]; then
   __loge "El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe tener como token medio: 'node', 'way' o 'relation'."
   exit "${ERROR_INVALID_ARGUMENT}"
  fi
  ## Checks process file structure.
  if [[ "${METHOD_TO_GET_IDS}" != "query" ]] \
-    && [[ "${METHOD_TO_GET_IDS}" != "ids" ]] ; then
+  && [[ "${METHOD_TO_GET_IDS}" != "ids" ]]; then
   __loge "El nombre del archivo de proceso no es correcto: ${BASE_PROCESS_FILE_NAME}."
   __logi "Debe terminar indicando el tipo para obtener ids: 'query' o 'ids'."
   exit "${ERROR_INVALID_ARGUMENT}"
@@ -317,7 +321,7 @@ function __prepareEnv {
  touch "${DIFF_FILE}"
  TITLE=$(head -1 "${PROCESS_FILE}")
 
- if [[ "${TITLE}" == "" ]] ; then
+ if [[ "${TITLE}" == "" ]]; then
   __logw "El archivo no tiene un título."
  fi
 
@@ -335,19 +339,19 @@ function __getDifferenceType {
  __log_start
  diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" > "${DETAILS_DIFF}"
  # Nodes
- if [[ "${FILE:0-4}" == "node" ]] ; then
+ if [[ "${FILE:0-4}" == "node" ]]; then
   __logd "Diferencias para nodos."
   LAT_DIFF_QTY=$(grep -c '^[<>]   "lat": ' "${DETAILS_DIFF}")
   LON_DIFF_QTY=$(grep -c '^[<>]   "lon": ' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
   DIFFERENCE_DETAIL="Cambios en "
-  if [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]] ; then
+  if [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de coordenadas."
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} coordenadas "
-  elif [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -eq 0 ]] ; then
+  elif [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -eq 0 ]]; then
    __logd "Diferencia de latitud."
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} latitud "
-  elif [[ "${LAT_DIFF_QTY}" -eq 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]] ; then
+  elif [[ "${LAT_DIFF_QTY}" -eq 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de longitud."
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} longitud "
   fi
@@ -355,7 +359,7 @@ function __getDifferenceType {
    DIFFERENCE_DETAIL="etiquetas "
   fi
  fi
- if [[ "${FILE:0-3}" == "way" ]] ; then
+ if [[ "${FILE:0-3}" == "way" ]]; then
   __logd "Diferencias para vías."
   NODES_DIFF_QTY=$(grep -c '^[<>]     \d,' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
@@ -369,7 +373,7 @@ function __getDifferenceType {
    DIFFERENCE_DETAIL="etiquetas "
   fi
  fi
- if [[ "${FILE:0-8}" == "relation" ]] ; then
+ if [[ "${FILE:0-8}" == "relation" ]]; then
   __logd "Diferencias para relaciones."
   NODES_OR_WAYS_DIFF_QTY=$(grep '^[<>]     \d,' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
@@ -396,7 +400,7 @@ function __addFile {
  __log_start
  local FILE="${1}"
 
- if [[ -r "${HISTORIC_FILES_DIR}/${FILE}" ]] ; then
+ if [[ -r "${HISTORIC_FILES_DIR}/${FILE}" ]]; then
   __logd "Se puede leer el archivo, entonces se procesa."
   # If there is an historic file, it compares it with the downloaded file.
   echo "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
@@ -404,12 +408,12 @@ function __addFile {
   diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   RET=${?}
   set -e
-  if [[ ${RET} -ne 0 ]] ; then
+  if [[ ${RET} -ne 0 ]]; then
    __logd "Hay diferencias en la cantidad de objetos."
    mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
    cd "${HISTORIC_FILES_DIR}/"
    # Validates concurrency, only one git process.
-   if [[ -n "${ID:-}" ]] ; then
+   if [[ -n "${ID:-}" ]]; then
     __logd "Agregando una nueva versión de un elemento."
     __getDifferenceType
     __put_lock
@@ -441,7 +445,7 @@ function __addFile {
   __put_lock
   git add "${FILE}"
   __release_lock
-  if [[ -n "${ID:-}" ]] ; then
+  if [[ -n "${ID:-}" ]]; then
    __logd "Agregando un nuevo archivo de un elemento."
    __put_lock
    git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
@@ -463,11 +467,11 @@ function __addFile {
  __log_finish
 }
 
-# Retrieves the IDs of the elements to analyze. 
+# Retrieves the IDs of the elements to analyze.
 function __generateIds {
  __log_start
  __logi "Obtiene los ids de las elementos."
- if [[ "${METHOD_TO_GET_IDS}" == "ids" ]] ; then
+ if [[ "${METHOD_TO_GET_IDS}" == "ids" ]]; then
   __logd "Lista de IDs definida."
   tail -n +2 "${PROCESS_FILE}" > "${IDS_FILE}"
  else
@@ -475,7 +479,7 @@ function __generateIds {
   tail -n +2 "${PROCESS_FILE}" > "${QUERY_FILE}"
   wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
   RET=${?}
-  if [[ "${RET}" -ne 0 ]] ; then
+  if [[ "${RET}" -ne 0 ]]; then
    __loge "Falló la descarga de los ids."
    exit "${ERROR_DOWNLOADING_IDS}"
   fi
@@ -500,7 +504,7 @@ function __checkHistory {
  __log_start
  # Iterates over each element id.
  __logi "Procesando elementos..."
- while read -r ID ; do
+ while read -r ID; do
   __logi "Procesando ${ELEMENT_TYPE} con id ${ID}."
 
   # Query to retrieve the element.
@@ -518,7 +522,7 @@ EOF
   RET=${?}
   set -e
   # Checks if the downloaded element was successful.
-  if [[ "${RET}" -ne 0 ]] ; then
+  if [[ "${RET}" -ne 0 ]]; then
    __logw "${ELEMENT_TYPE} falló descarga ${ID}."
    continue
   fi
@@ -527,12 +531,12 @@ EOF
   set -e
 
   # Checks if the downloaded element contains errors.
-  if [[ "${ERROR_QTY}" -ne 0 ]] ; then
+  if [[ "${ERROR_QTY}" -ne 0 ]]; then
    __logw "Hubo un error en la descaga del elemento ${ELEMENT_TYPE} con id ${ID}."
    __logi "$(cat "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" || true)"
    continue
   fi
- 
+
   # Removes the date from the file.
   sed -i'' -e '/"timestamp_osm_base":/d' "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json"
   rm -f "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json-e"
@@ -555,7 +559,7 @@ EOF
 # Sends the report of the modified elements.
 function __sendMail {
  __log_start
- if [[ -f "${REPORT_CONTENT}" ]] ; then
+ if [[ -f "${REPORT_CONTENT}" ]]; then
   __logi "Enviando mensaje por correo electrónico."
   {
    cat "${REPORT_CONTENT}"
@@ -563,7 +567,7 @@ function __sendMail {
    echo "Hora de fin: $(date || true)"
    echo
    echo "Este reporte fue creado por medio del script verificador:"
-   echo "https://github.com/MaptimeBogota/OSM-elements-change-tracker" 
+   echo "https://github.com/MaptimeBogota/OSM-elements-change-tracker"
   } >> "${REPORT}"
   echo "" | mutt -s "Detección de diferencias en ${TITLE}" -i "${REPORT}" -a "${DIFF_FILE}" -- "${EMAILS}" >> "${LOG_FILE}"
   __logi "Mensaje enviado."
@@ -574,7 +578,7 @@ function __sendMail {
 # Clean unnecessary files.
 function __cleanFiles {
  __log_start
- if [[ "${CLEAN_FILES}" = "true" ]] ; then
+ if [[ "${CLEAN_FILES}" = "true" ]]; then
   __logi "Limpiando archivos innecesarios."
   rm -f "${QUERY_FILE}" "${IDS_FILE}" "${REPORT}" "${DETAILS_DIFF}"
  fi
@@ -616,4 +620,3 @@ exec 7> "${LOCK}"
  __cleanFiles
  __logw "Proceso terminado."
 } >> "${LOG_FILE}" 2>&1
-
