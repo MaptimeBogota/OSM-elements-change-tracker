@@ -337,7 +337,10 @@ EOF
 # Gets a details of the differences for an element.
 function __getDifferenceType {
  __log_start
+ set +e
  diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" > "${DETAILS_DIFF}"
+ set -e
+ DIFFERENCE_DETAIL=""
  # Nodes
  if [[ "${FILE:0-4}" == "node" ]]; then
   __logd "Diferencias para nodos."
@@ -356,7 +359,7 @@ function __getDifferenceType {
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} longitud "
   fi
   if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
-   DIFFERENCE_DETAIL="etiquetas "
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas."
   fi
  fi
  if [[ "${FILE:0-3}" == "way" ]]; then
@@ -366,11 +369,11 @@ function __getDifferenceType {
   DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos."
-   DIFFERENCE_DETAIL=" cantidad de nodos "
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} cantidad de nodos "
   fi
   if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de etiquetas."
-   DIFFERENCE_DETAIL="etiquetas "
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas."
   fi
  fi
  if [[ "${FILE:0-8}" == "relation" ]]; then
@@ -381,17 +384,18 @@ function __getDifferenceType {
   DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_OR_WAYS_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos o vías."
-   DIFFERENCE_DETAIL=" cantidad de nodos o vías "
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} cantidad de nodos o vías "
   fi
   if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
-   DIFFERENCE_DETAIL=" etiquetas "
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas "
    __logd "Diferencia de etiquetas."
   fi
   if [[ "${ROLES_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de roles."
-   DIFFERENCE_DETAIL=" roles "
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} roles."
   fi
  fi
+ echo "${DIFFERENCE_DETAIL}"
  __log_finish
 }
 
@@ -409,30 +413,40 @@ function __addFile {
   RET=${?}
   set -e
   if [[ ${RET} -ne 0 ]]; then
-   __logd "Hay diferencias en la cantidad de objetos."
-   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
-   cd "${HISTORIC_FILES_DIR}/"
-   # Validates concurrency, only one git process.
+   __logd "Hay diferencias en la nueva versión."
+
+   # Getting details about the difference.
    if [[ -n "${ID:-}" ]]; then
-    __logd "Agregando una nueva versión de un elemento."
-    __getDifferenceType
-    __put_lock
-    git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
-    __release_lock
-    cd - > /dev/null
+    DIFFERENCE_DETAIL=$(__getDifferenceType)
     echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
     echo "${DIFFERENCE_DETAIL}" >> "${REPORT_CONTENT}"
    else
-    __logd "Agregando una nueva versión de lista de IDs."
-    __put_lock
-    git commit "${FILE}" -m "New version of ${FILE}." >> "${LOG_FILE}" 2>&1
+    set +e
     sdiff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
-    __release_lock
-    cd - > /dev/null
+    set -e
     echo "* Diferencias en el conjunto de IDs." >> "${REPORT_CONTENT}"
    fi
+
+   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+   cd "${HISTORIC_FILES_DIR}/"
+
+   # Adds the new file version to git.
+   if [[ -n "${ID:-}" ]]; then
+    __logd "Agregando una nueva versión de un elemento."
+    # Validates concurrency, only one git process.
+    __put_lock
+    git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+    __release_lock
+   else
+    __logd "Agregando una nueva versión de lista de IDs."
+    # Validates concurrency, only one git process.
+    __put_lock
+    git commit "${FILE}" -m "New version of ${FILE}." >> "${LOG_FILE}" 2>&1
+    __release_lock
+   fi
+   cd - > /dev/null
   else
-   __logd "No hay diferencias en la cantidad de objetos."
+   __logd "No hay diferencias entre la versión guardada y la descargada."
    # The file is the same - no changes in the OSM element.
    rm "${TMP_DIR}/${FILE}"
   fi
