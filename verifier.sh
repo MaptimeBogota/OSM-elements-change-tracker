@@ -135,6 +135,8 @@ declare TITLE
 declare ELEMENT_TYPE
 # Method to get the IDs.
 declare METHOD_TO_GET_IDS
+# Detail of the difference.
+declare DIFFERENCE_DETAIL
 
 ###########
 # FUNCTIONS
@@ -176,7 +178,7 @@ function __start_logger() {
    exit "${ERROR_LOGGER_UTILITY}"
   fi
   # Logger levels: TRACE, DEBUG, INFO, WARN, ERROR.
-  __bl_set_log_level "${LOG_LEVEL}"
+  __set_log_level "${LOG_LEVEL}"
   __logd "Logger adicionado."
  else
   printf "\nLogger no fue encontrado.\n"
@@ -342,11 +344,13 @@ function __getDifferenceType {
  set -e
  DIFFERENCE_DETAIL=""
  # Nodes
- if [[ "${FILE:0-4}" == "node" ]]; then
+ if [[ "${FILE:0:4}" == "node" ]]; then
   __logd "Diferencias para nodos."
+  set +e
   LAT_DIFF_QTY=$(grep -c '^[<>]   "lat": ' "${DETAILS_DIFF}")
   LON_DIFF_QTY=$(grep -c '^[<>]   "lon": ' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
+  set -e
   DIFFERENCE_DETAIL="Cambios en "
   if [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de coordenadas."
@@ -362,10 +366,12 @@ function __getDifferenceType {
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas."
   fi
  fi
- if [[ "${FILE:0-3}" == "way" ]]; then
+ if [[ "${FILE:0:3}" == "way" ]]; then
   __logd "Diferencias para vías."
+  set +e
   NODES_DIFF_QTY=$(grep -c '^[<>]     \d,' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
+  set -e
   DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos."
@@ -376,11 +382,13 @@ function __getDifferenceType {
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas."
   fi
  fi
- if [[ "${FILE:0-8}" == "relation" ]]; then
+ if [[ "${FILE:0:8}" == "relation" ]]; then
   __logd "Diferencias para relaciones."
+  set +e
   NODES_OR_WAYS_DIFF_QTY=$(grep '^[<>]     \d,' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
   ROLES_DIFF_QTY=$(grep -c '^[<>]       "role": ' "${DETAILS_DIFF}")
+  set -e
   DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_OR_WAYS_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos o vías."
@@ -395,7 +403,6 @@ function __getDifferenceType {
    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} roles."
   fi
  fi
- echo "${DIFFERENCE_DETAIL}"
  __log_finish
 }
 
@@ -417,7 +424,7 @@ function __addFile {
 
    # Getting details about the difference.
    if [[ -n "${ID:-}" ]]; then
-    DIFFERENCE_DETAIL=$(__getDifferenceType)
+    __getDifferenceType
     echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
     echo "${DIFFERENCE_DETAIL}" >> "${REPORT_CONTENT}"
    else
@@ -605,26 +612,24 @@ function __cleanFiles {
 # Allows to other user read the directory.
 chmod go+x "${TMP_DIR}"
 
-{
  __start_logger
+if [ ! -t 1 ] ; then
+ __set_log_file "${LOG_FILE}"
+fi
  __logi "Preparando el ambiente."
  __logd "Salida guardada en: ${TMP_DIR}."
  __logi "Procesando tipo de elemento: ${PROCESS_TYPE}."
-} >> "${LOG_FILE}" 2>&1
 
 if [[ "${PROCESS_TYPE}" == "-h" ]] || [[ "${PROCESS_TYPE}" == "--help" ]]; then
  __show_help
 fi
 __checkPrereqs
-{
  __logw "Comenzando el proceso."
-} >> "${LOG_FILE}" 2>&1
 
 # Sets the trap in case of any signal.
 __trapOn
 exec 7> "${LOCK}"
 
-{
  __prepareEnv
  __generateIds
  set +E
@@ -633,4 +638,3 @@ exec 7> "${LOCK}"
  __sendMail
  __cleanFiles
  __logw "Proceso terminado."
-} >> "${LOG_FILE}" 2>&1
