@@ -94,9 +94,9 @@ declare TMP_DIR
 TMP_DIR=$(mktemp -d "/tmp/${BASENAME}_XXXXXX")
 readonly TMP_DIR
 # Log file for output.
-declare LOG_FILE
-LOG_FILE="${TMP_DIR}/${BASENAME}.log"
-readonly LOG_FILE
+declare LOG_FILENAME
+LOG_FILENAME="${TMP_DIR}/${BASENAME}.log"
+readonly LOG_FILENAME
 
 # Lock file for single git execution.
 declare LOCK
@@ -137,6 +137,8 @@ declare ELEMENT_TYPE
 declare METHOD_TO_GET_IDS
 # Detail of the difference.
 declare DIFFERENCE_DETAIL
+# Last detail of the difference.
+declare LAST_DIFFERENCE_DETAIL
 
 ###########
 # FUNCTIONS
@@ -315,7 +317,7 @@ function __prepareEnv {
  __log_start
  mkdir -p "${HISTORIC_FILES_DIR}" > /dev/null
  cd "${HISTORIC_FILES_DIR}/"
- git init >> "${LOG_FILE}" 2>&1
+ git init
  git config user.email "maptime.bogota@gmail.com"
  git config user.name "Bot de chequeo cambios de elementos en OSM"
  cd - > /dev/null
@@ -336,6 +338,27 @@ EOF
  __log_finish
 }
 
+# Adds a word to the differences.
+function __addWord {
+ __log_start
+ NEW_WORD="${1}"
+ if [ "${NEW_WORD}" == "." ];then
+  if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+   DIFFERENCE_DETAIL="Cambios en ${LAST_DIFFERENCE_DETAIL}."
+  else
+   DIFFERENCE_DETAIL="Cambios en ${DIFFERENCE_DETAIL} y ${LAST_DIFFERENCE_DETAIL}."
+  fi
+ else
+  if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+   LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
+  else
+   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL}, ${LAST_DIFFERENCE_DETAIL}"
+   LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
+  fi
+ fi
+ __log_finish
+}
+
 # Gets a details of the differences for an element.
 function __getDifferenceType {
  __log_start
@@ -351,57 +374,63 @@ function __getDifferenceType {
   LON_DIFF_QTY=$(grep -c '^[<>]   "lon": ' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
   set -e
-  DIFFERENCE_DETAIL="Cambios en "
   if [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de coordenadas."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} coordenadas "
+   __addWord "coordenadas"
   elif [[ "${LAT_DIFF_QTY}" -ne 0 ]] && [[ "${LON_DIFF_QTY}" -eq 0 ]]; then
    __logd "Diferencia de latitud."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} latitud "
+   __addWord "latitud"
   elif [[ "${LAT_DIFF_QTY}" -eq 0 ]] && [[ "${LON_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de longitud."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} longitud "
+   __addWord "longitud"
   fi
   if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas."
+   __addWord "etiquetas"
   fi
+  __addWord "."
+
  fi
+
+ # Ways
  if [[ "${FILE:0:3}" == "way" ]]; then
   __logd "Diferencias para vías."
   set +e
   NODES_DIFF_QTY=$(grep -c '^[<>]     \d,' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
   set -e
-  DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} cantidad de nodos "
+   __addWord "cantidad de nodos"
   fi
   if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de etiquetas."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas."
+   __addWord "etiquetas"
   fi
+  __addWord "."
  fi
+
+ # Relations
  if [[ "${FILE:0:8}" == "relation" ]]; then
   __logd "Diferencias para relaciones."
   set +e
-  NODES_OR_WAYS_DIFF_QTY=$(grep '^[<>]     \d,' "${DETAILS_DIFF}")
+  NODES_OR_WAYS_DIFF_QTY=$(grep -c '^[<>]     \d,' "${DETAILS_DIFF}")
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
   ROLES_DIFF_QTY=$(grep -c '^[<>]       "role": ' "${DETAILS_DIFF}")
   set -e
   DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_OR_WAYS_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos o vías."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} cantidad de nodos o vías "
+   __addWord "cantidad de nodos o vías"
   fi
   if [[ "${TAGS_DIFF_QTY}" -ne 0 ]]; then
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} etiquetas "
+   __addWord "etiquetas"
    __logd "Diferencia de etiquetas."
   fi
   if [[ "${ROLES_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de roles."
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL} roles."
+   __addWord "roles"
   fi
+  __addWord "."
  fi
  __log_finish
 }
@@ -442,13 +471,13 @@ function __addFile {
     __logd "Agregando una nueva versión de un elemento."
     # Validates concurrency, only one git process.
     __put_lock
-    git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+    git commit "${FILE}" -m "New version of ${ELEMENT_TYPE} ${ID}."
     __release_lock
    else
     __logd "Agregando una nueva versión de lista de IDs."
     # Validates concurrency, only one git process.
     __put_lock
-    git commit "${FILE}" -m "New version of ${FILE}." >> "${LOG_FILE}" 2>&1
+    git commit "${FILE}" -m "New version of ${FILE}."
     __release_lock
    fi
    cd - > /dev/null
@@ -469,7 +498,7 @@ function __addFile {
   if [[ -n "${ID:-}" ]]; then
    __logd "Agregando un nuevo archivo de un elemento."
    __put_lock
-   git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}." >> "${LOG_FILE}" 2>&1
+   git commit "${FILE}" -m "Initial version of ${ELEMENT_TYPE} ${ID}."
    __release_lock
    cd - > /dev/null
    # Include new files into the report.
@@ -477,7 +506,7 @@ function __addFile {
   else
    __logd "Agregando un nuevo archivo de lista de IDs."
    __put_lock
-   git commit "${FILE}" -m "Initial version of ${FILE}." >> "${LOG_FILE}" 2>&1
+   git commit "${FILE}" -m "Initial version of ${FILE}."
    __release_lock
    cd - > /dev/null
    # Include new files into the report.
@@ -498,7 +527,7 @@ function __generateIds {
  else
   __logd "IDs por query."
   tail -n +2 "${PROCESS_FILE}" > "${QUERY_FILE}"
-  wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
+  wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter"
   RET=${?}
   if [[ "${RET}" -ne 0 ]]; then
    __loge "Falló la descarga de los ids."
@@ -509,7 +538,7 @@ function __generateIds {
  fi
  __logi "Ids para: ${TITLE}."
  __logw "${PROCESS_FILE}"
- cat "${IDS_FILE}" >> "${LOG_FILE}"
+ cat "${IDS_FILE}"
 
  # Adds the IDs list in a file, to keep track of the monitored elements.
  TITLE_NO_SPACES="ids-${TITLE// /}.txt"
@@ -535,11 +564,11 @@ ${ELEMENT_TYPE}(${ID});
 (._;>;);
 out; 
 EOF
-  cat "${QUERY_FILE}" >> "${LOG_FILE}"
+  cat "${QUERY_FILE}"
 
   # Gets the geometry of the element.
   set +e
-  wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" >> "${LOG_FILE}" 2>&1
+  wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter"
   RET=${?}
   set -e
   # Checks if the downloaded element was successful.
@@ -590,7 +619,7 @@ function __sendMail {
    echo "Este reporte fue creado por medio del script verificador:"
    echo "https://github.com/MaptimeBogota/OSM-elements-change-tracker"
   } >> "${REPORT}"
-  echo "" | mutt -s "Detección de diferencias en ${TITLE}" -i "${REPORT}" -a "${DIFF_FILE}" -- "${EMAILS}" >> "${LOG_FILE}"
+  echo "" | mutt -s "Detección de diferencias en ${TITLE}" -i "${REPORT}" -a "${DIFF_FILE}" -- "${EMAILS}"
   __logi "Mensaje enviado."
  fi
  __log_finish
@@ -609,13 +638,7 @@ function __cleanFiles {
 ######
 # MAIN
 
-# Allows to other user read the directory.
-chmod go+x "${TMP_DIR}"
-
- __start_logger
-if [ ! -t 1 ] ; then
- __set_log_file "${LOG_FILE}"
-fi
+function main() {
  __logi "Preparando el ambiente."
  __logd "Salida guardada en: ${TMP_DIR}."
  __logi "Procesando tipo de elemento: ${PROCESS_TYPE}."
@@ -638,3 +661,17 @@ exec 7> "${LOCK}"
  __sendMail
  __cleanFiles
  __logw "Proceso terminado."
+
+}
+
+# Allows to other user read the directory.
+chmod go+x "${TMP_DIR}"
+
+__start_logger
+if [ ! -t 1 ] ; then
+ __set_log_file "${LOG_FILENAME}"
+ main >> "${LOG_FILENAME}"
+else
+ main
+fi
+
