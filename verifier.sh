@@ -343,8 +343,11 @@ function __addWord {
  __log_start
  NEW_WORD="${1}"
  # End of differences.
- if [ "${NEW_WORD}" == "." ];then
-  if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+ if [[ "${NEW_WORD}" == "." ]]; then
+  if [[ "${DIFFERENCE_DETAIL}" == "" ]] \
+   && [[ "${LAST_DIFFERENCE_DETAIL}" == "" ]]; then
+   DIFFERENCE_DETAIL="Otros cambios."
+  elif [[ "${DIFFERENCE_DETAIL}" == "" ]]; then
    # Only one difference.
    DIFFERENCE_DETAIL="Cambios en ${LAST_DIFFERENCE_DETAIL}."
    LAST_DIFFERENCE_DETAIL=""
@@ -355,11 +358,11 @@ function __addWord {
   fi
  else
   # Adds a differences.
-  if [ "${LAST_DIFFERENCE_DETAIL}" == "" ]; then
+  if [[ "${LAST_DIFFERENCE_DETAIL}" == "" ]]; then
    # Adding the first difference.
    LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
   else
-   if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+   if [[ "${DIFFERENCE_DETAIL}" == "" ]]; then
     # Adding a second difference.
     DIFFERENCE_DETAIL="${LAST_DIFFERENCE_DETAIL}"
     LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
@@ -540,7 +543,7 @@ function __generateIds {
  else
   __logd "IDs por query."
   tail -n +2 "${PROCESS_FILE}" > "${QUERY_FILE}"
-  wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter"
+  wget -O "${IDS_FILE}" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" 2> "${LOG_FILENAME}"
   RET=${?}
   if [[ "${RET}" -ne 0 ]]; then
    __loge "Falló la descarga de los ids."
@@ -581,7 +584,7 @@ EOF
 
   # Gets the geometry of the element.
   set +e
-  wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter"
+  wget -O "${TMP_DIR}/${ELEMENT_TYPE}-${ID}.json" --post-file="${QUERY_FILE}" "https://overpass-api.de/api/interpreter" 2> "${LOG_FILENAME}"
   RET=${?}
   set -e
   # Checks if the downloaded element was successful.
@@ -656,15 +659,15 @@ function main() {
  __logd "Salida guardada en: ${TMP_DIR}."
  __logi "Procesando tipo de elemento: ${PROCESS_TYPE}."
 
-if [[ "${PROCESS_TYPE}" == "-h" ]] || [[ "${PROCESS_TYPE}" == "--help" ]]; then
- __show_help
-fi
-__checkPrereqs
+ if [[ "${PROCESS_TYPE}" == "-h" ]] || [[ "${PROCESS_TYPE}" == "--help" ]]; then
+  __show_help
+ fi
+ __checkPrereqs
  __logw "Comenzando el proceso."
 
-# Sets the trap in case of any signal.
-__trapOn
-exec 7> "${LOCK}"
+ # Sets the trap in case of any signal.
+ __trapOn
+ exec 7> "${LOCK}"
 
  __prepareEnv
  __generateIds
@@ -681,10 +684,9 @@ exec 7> "${LOCK}"
 chmod go+x "${TMP_DIR}"
 
 __start_logger
-if [ ! -t 1 ] ; then
+if [[ ! -t 1 ]]; then
  __set_log_file "${LOG_FILENAME}"
  main >> "${LOG_FILENAME}"
 else
  main
 fi
-
