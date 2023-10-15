@@ -36,7 +36,7 @@
 #
 # export EMAILS="angoca@yahoo.com" ; export LOG_LEVEL=WARN; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/mosqueraCentro/diff_relation_query_todo
 #
-# For contributing, please execute these commands at the end:
+# For contributing, please execute these commands before subimitting:
 # * shellcheck -x -o all verifier.sh
 # * shfmt -w -i 1 -sr -bn verifier.sh
 #
@@ -138,7 +138,7 @@ declare METHOD_TO_GET_IDS
 # Detail of the difference.
 declare DIFFERENCE_DETAIL
 # Last detail of the difference.
-declare LAST_DIFFERENCE_DETAIL
+declare LAST_DIFFERENCE_DETAIL=""
 
 ###########
 # FUNCTIONS
@@ -342,18 +342,32 @@ EOF
 function __addWord {
  __log_start
  NEW_WORD="${1}"
+ # End of differences.
  if [ "${NEW_WORD}" == "." ];then
   if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+   # Only one difference.
    DIFFERENCE_DETAIL="Cambios en ${LAST_DIFFERENCE_DETAIL}."
+   LAST_DIFFERENCE_DETAIL=""
   else
+   # More than one difference.
    DIFFERENCE_DETAIL="Cambios en ${DIFFERENCE_DETAIL} y ${LAST_DIFFERENCE_DETAIL}."
+   LAST_DIFFERENCE_DETAIL=""
   fi
  else
-  if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+  # Adds a differences.
+  if [ "${LAST_DIFFERENCE_DETAIL}" == "" ]; then
+   # Adding the first difference.
    LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
   else
-   DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL}, ${LAST_DIFFERENCE_DETAIL}"
-   LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
+   if [ "${DIFFERENCE_DETAIL}" == "" ]; then
+    # Adding a second difference.
+    DIFFERENCE_DETAIL="${LAST_DIFFERENCE_DETAIL}"
+    LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
+   else
+    # Adding a third or more difference.
+    DIFFERENCE_DETAIL="${DIFFERENCE_DETAIL}, ${LAST_DIFFERENCE_DETAIL}"
+    LAST_DIFFERENCE_DETAIL="${NEW_WORD}"
+   fi
   fi
  fi
  __log_finish
@@ -417,7 +431,6 @@ function __getDifferenceType {
   TAGS_DIFF_QTY=$(grep -c '^[<>]     ".*": ' "${DETAILS_DIFF}")
   ROLES_DIFF_QTY=$(grep -c '^[<>]       "role": ' "${DETAILS_DIFF}")
   set -e
-  DIFFERENCE_DETAIL="Cambios en "
   if [[ "${NODES_OR_WAYS_DIFF_QTY}" -ne 0 ]]; then
    __logd "Diferencia de cantidad de nodos o vías."
    __addWord "cantidad de nodos o vías"
