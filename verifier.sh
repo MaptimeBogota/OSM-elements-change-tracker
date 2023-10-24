@@ -461,7 +461,7 @@ function __addFile {
   # If there is an historic file, it compares it with the downloaded file.
   echo "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
   set +e
-  diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
+  diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> /dev/null
   RET=${?}
   set -e
   if [[ ${RET} -ne 0 ]]; then
@@ -469,6 +469,9 @@ function __addFile {
 
    # Getting details about the difference.
    if [[ -n "${ID:-}" ]]; then
+    set +e
+    diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
+    set -e
     __getDifferenceType
     echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
     echo "${DIFFERENCE_DETAIL}" >> "${REPORT_CONTENT}"
@@ -479,7 +482,11 @@ function __addFile {
     echo "* Diferencias en el conjunto de IDs." >> "${REPORT_CONTENT}"
    fi
 
-   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+   if [[ "${CLEAN_FILES}" = "true" ]]; then
+    mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+   else
+    cp "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+   fi
    cd "${HISTORIC_FILES_DIR}/"
 
    # Adds the new file version to git.
@@ -505,7 +512,11 @@ function __addFile {
  else
   __logd "Agregando un nuevo archivo."
   # If there is no historic file, then it just moves the file in the historic.
-  mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+  if [[ "${CLEAN_FILES}" = "true" ]]; then
+   mv "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+  else
+   cp "${TMP_DIR}/${FILE}" "${HISTORIC_FILES_DIR}/"
+  fi
   cd "${HISTORIC_FILES_DIR}/"
   # Validates concurrency, only one git process.
   __put_lock
@@ -634,6 +645,10 @@ function __sendMail {
    echo
    echo "Este reporte fue creado por medio del script verificador:"
    echo "https://github.com/MaptimeBogota/OSM-elements-change-tracker"
+   if [[ "${CLEAN_FILES}" != "true" ]]; then
+    echo
+    echo "Temp directory: ${TMP_DIR}"
+   fi
   } >> "${REPORT}"
   echo "" | mutt -s "Detección de diferencias en ${TITLE}" -i "${REPORT}" -a "${DIFF_FILE}" -- "${EMAILS}"
   __logi "Mensaje enviado."
@@ -690,3 +705,4 @@ if [[ ! -t 1 ]]; then
 else
  main
 fi
+
