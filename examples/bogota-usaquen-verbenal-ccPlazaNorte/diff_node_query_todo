@@ -1,0 +1,8 @@
+Nodos del CC Plaza Norte, Verbenal, Usaquén, Bogotá
+ [out:csv(::id)];
+ area["landuse"="comercial"][name="Centro Comercial Plaza Norte"]["addr:city"="Bogotá D.C."]->.searchArea;
+ (
+   node(area.searchArea);
+ );
+ out ids;
+
