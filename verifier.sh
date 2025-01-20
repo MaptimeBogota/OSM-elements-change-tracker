@@ -111,7 +111,8 @@ declare -r QUERY_FILE=${TMP_DIR}/query.txt
 # IDs file.
 declare -r IDS_FILE=${TMP_DIR}/ids.txt
 # Git history directory.
-declare -r HISTORIC_FILES_DIR="${SCRIPT_BASE_DIRECTORY}/history"
+# TODO se podria crear directorio por ejemplo, para no tener un git tan grande
+declare -r HISTORIC_FILES_DIR="${SCRIPT_BASE_DIRECTORY}/history/${PROCESS_TYPE}"
 # Wait time between retrievals.
 declare -ir WAIT_TIME=2
 # Report file.
@@ -208,8 +209,11 @@ function __show_help {
  echo "La forma para invocar este script es:"
  echo " * fileName : indica el nombre del archivo que contiene la consulta o"
  echo "   lista de ids a consultar. El nombre del archivo tiene que seguir una"
- echo "   nomenclatura."
+ echo "   nomenclatura, descrita abajo."
  echo " * --help : muestra esta ayuda."
+ echo
+ echo
+ echo "# Nomenclatura del archivo a procesar"
  echo
  echo "La nomenclatura del archivo tiene tres partes separadas por barra baja."
  echo " * La palabra 'diff'."
@@ -222,12 +226,38 @@ function __show_help {
  echo "     requiere hacer consulta."
  echo "   * query : Consulta de overpass que retorna la lista de ids de objetos"
  echo "     a analizar."
+ echo " * Opcionalmente puede tener otras palabras o nombres al final."
  echo "La primera línea del archivo contiene el título de la operación de"
  echo "análisis, la cual será usada para enviar mensaje de correo electrónico."
+ echo
+ echo "Algunos nombres de archivo:"
+ echo
+ echo " * diff_node_query_barrio_canodromo"
+ echo " * diff_way_query_mosquera"
+ echo " * diff_relation_ids_ciclovias"
+ echo " * diff_relation_query"
+ echo
+ echo
+ echo "# Variables de entorno"
+ echo
+ echo "Estas son algunas variables que cambian el funcionamiento del script:"
  echo
  echo "Para cambiar los destinatarios del reporte enviado por correo"
  echo "electrónico, se modifica la variable de entorno EMAILS:"
  echo "  export EMAILS=\"maptime.bogota@gmail.com,contact@osm.org\""
+ echo
+ echo "Para no borrar los archivos usados en el proceso se cambia CLEAN_FILES"
+ echo "false."
+ echo "  export CLEAN_FILES=false"
+ echo
+ echo "El nivel de logs a generar en el archivo de logs. Hay varios niveles"
+ echo "(DEBUG,INFO,WARN,ERROR,FATAL)."
+ echo "  export LOG_LEVEL=DEBUG"
+ echo
+ echo
+ echo "# Ejemplo"
+ echo
+ echo "  export EMAILS=\"angoca@yahoo.com\" ; export CLEAN_FILES=false ; export LOG_LEVEL=WARN; cd ~/OSM-elements-change-tracker ; ./verifier.sh examples/mosqueraCentro/diff_relation_query_todo"
  echo
  echo "Escrito por: Andres Gomez (AngocA)"
  echo "MaptimeBogota."
@@ -473,7 +503,7 @@ function __addFile {
     diff "${HISTORIC_FILES_DIR}/${FILE}" "${TMP_DIR}/${FILE}" >> "${DIFF_FILE}"
     set -e
     __getDifferenceType
-    echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
+    echo "* Revisar https://osm.org/${ELEMENT_TYPE}/${ID} -- https://osmlab.github.io/osm-deep-history/#/${ELEMENT_TYPE}/${ID}" >> "${REPORT_CONTENT}"
     echo "${DIFFERENCE_DETAIL}" >> "${REPORT_CONTENT}"
    else
     set +e
